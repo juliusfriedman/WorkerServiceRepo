@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Microsoft.SqlServer.Types;
+using System.ComponentModel.DataAnnotations;
 
 namespace WorkerServiceRepo
 {
     public class Destination
     {
+        [Key]
         public int Id { get; set; }
-        public Microsoft.SqlServer.Types.SqlGeography Location { get; set; }
+        public SqlGeography Location { get; set; }
     }
 }

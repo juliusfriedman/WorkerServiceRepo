@@ -5,7 +5,6 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Transactions;
 
 namespace WorkerServiceRepo
 {
@@ -21,11 +20,13 @@ namespace WorkerServiceRepo
 
         public DbSet<Destination> Destination { get; set; }
 
+        //public DbSet<DestinationNts> Destinations { get; set; }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (optionsBuilder.IsConfigured) return;
             Configure(optionsBuilder);
-            optionsBuilder.UseSqlServer(ConnectionString);
+            optionsBuilder.UseSqlServer(ConnectionString, x => x.UseNetTopologySuite());
             base.OnConfiguring(optionsBuilder);
         }
 
@@ -65,32 +66,21 @@ namespace WorkerServiceRepo
         /// <param name="entities"></param>
         public void InsertAll<TEntity>(IEnumerable<TEntity> entities, int batchSize = 100) where TEntity : class
         {
-            using (TransactionScope scope = new TransactionScope())
+            DatabaseContext context = null;
+
+            context = new DatabaseContext(ConnectionString);
+            context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+            int count = 0;
+            foreach (var entityToInsert in entities)
             {
-                DatabaseContext context = null;
-
-                try
-                {
-                    context = new DatabaseContext(this);
-                    context.ChangeTracker.AutoDetectChangesEnabled = false;
-
-                    int count = 0;
-                    foreach (var entityToInsert in entities)
-                    {
-                        ++count;
-                        context = AddToContext(context, entityToInsert, count, batchSize, true);
-                    }
-
-                    context.SaveChanges();
-                }
-                finally
-                {
-                    if (context != null)
-                        context.Dispose();
-                }
-
-                scope.Complete();
+                ++count;
+                context = AddToContext(context, entityToInsert, count, batchSize, true);
             }
+
+            context.SaveChanges();
+            context.Dispose();
+            context = null;
         }
 
         /// <summary>
@@ -107,8 +97,8 @@ namespace WorkerServiceRepo
             int count, int commitCount, bool recreateContext) where TEntity : class
         {
             context.Set<TEntity>().Add(entity);
-
             if (count % commitCount == 0)
+
             {
                 context.SaveChanges();
                 if (recreateContext)
@@ -121,6 +111,7 @@ namespace WorkerServiceRepo
 
             return context;
         }
+
         /// <summary>
         /// 
         /// </summary>
@@ -132,21 +123,16 @@ namespace WorkerServiceRepo
         public async Task BulkInsertAllAsync<TEntity>(IEnumerable<TEntity> entities, int timeout = 0, int batchSize = 10000)
             where TEntity : class
         {
-            using (var conn = new SqlConnection(ConnectionString))
+            using (var bulkCopy = new SqlBulkCopy(ConnectionString, SqlBulkCopyOptions.TableLock)
             {
-                await conn.OpenAsync();
-
-                using (var bulkCopy = new SqlBulkCopy(conn)
+                DestinationTableName = GetTableName<TEntity>()
+            })
+            {
+                using (var table = Fill(entities))
                 {
-                    DestinationTableName = GetTableName<TEntity>()
-                })
-                {
-                    using (var table = Fill<TEntity>(entities))
-                    {
-                        bulkCopy.BulkCopyTimeout = timeout;
-                        bulkCopy.BatchSize = batchSize;
-                        await bulkCopy.WriteToServerAsync(table);
-                    }
+                    bulkCopy.BulkCopyTimeout = timeout;
+                    bulkCopy.BatchSize = batchSize;
+                    await bulkCopy.WriteToServerAsync(table);
                 }
             }
         }
@@ -161,21 +147,16 @@ namespace WorkerServiceRepo
         public void BulkInsertAll<TEntity>(IEnumerable<TEntity> entities, int timeout = 0, int batchSize = 10000)
             where TEntity : class
         {
-            using (var conn = new SqlConnection(ConnectionString))
+            using (var bulkCopy = new SqlBulkCopy(ConnectionString, SqlBulkCopyOptions.TableLock)
             {
-                conn.Open();
-
-                using (var bulkCopy = new SqlBulkCopy(conn)
+                DestinationTableName = GetTableName<TEntity>()
+            })
+            {
+                using (var table = Fill(entities))
                 {
-                    DestinationTableName = GetTableName<TEntity>()
-                })
-                {
-                    using (var table = Fill(entities))
-                    {
-                        bulkCopy.BulkCopyTimeout = timeout;
-                        bulkCopy.BatchSize = batchSize;
-                        bulkCopy.WriteToServer(table);
-                    }
+                    bulkCopy.BulkCopyTimeout = timeout;
+                    bulkCopy.BatchSize = batchSize;
+                    bulkCopy.WriteToServer(table);
                 }
             }
         }

@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NetTopologySuite.Geometries;
 
 namespace WorkerServiceRepo
 {
@@ -35,7 +36,7 @@ namespace WorkerServiceRepo
 
     //IHostedService implements BackgroundService
     //https://docs.microsoft.com/en-us/dotnet/architecture/microservices/multi-container-microservice-net-applications/background-tasks-with-ihostedservice
-    public class Worker : HostedService
+    public class Worker : HostedServiceBase
     {
         private readonly ILogger<Worker> _logger;
         private readonly WorkerOptions _workerOptions;
@@ -70,7 +71,7 @@ namespace WorkerServiceRepo
 
             while (false == stoppingToken.IsCancellationRequested)
             {
-                int min = 0, max = 1000000;
+                int min = 0, max = 0;
 
                 int current = min;
 
@@ -82,12 +83,19 @@ namespace WorkerServiceRepo
 
                 _logger.LogInformation("Worker running at: {time} {id}", sampleBegin = DateTime.Now, Thread.CurrentThread.ManagedThreadId);
 
-            //await Repo();
+                using (var db = new DatabaseContext(_workerOptions.Source))
+                {
+                    max = db.Source.Count();
+                }
 
-            Operation:
+                //await Repo();
+
+                int wrote = 0;
+
+                Operation:
                 tasks.RemoveWhere(t => t.IsCanceled || t.IsCompleted || t.IsFaulted);
 
-                while (current < max&& tasks.Count < 10)
+                while (current < max && tasks.Count < 10)
                 {
                     tasks.Add(taskFactory.StartNew(state =>
                     {
@@ -95,17 +103,39 @@ namespace WorkerServiceRepo
 
                         using (var db = new DatabaseContext(_workerOptions.Destination))
                         {
-                            var sources = db.Source.Where(s => s.Id >= min && s.Id < max).Select(s => new Destination()
+                            _logger.LogInformation("Repo Chunk {start} Started @ {time} {id}", start,DateTime.Now, Thread.CurrentThread.ManagedThreadId);
+
+                            //var destinations = db.Source.Where(s => s.Id >= start && s.Id < start + batchSize).Select(s => new DestinationNts()
+                            //{
+                            //    Location = new Point((double)s.Longitude, (double)s.Latitude)
+                            //    {
+                            //        SRID = 4326
+                            //    }
+                            //});
+
+                            ////Insert with Entity Framework
+                            //db.InsertAll<DestinationNts>(destinations);
+
+                            //////////////////////////
+
+                            var destinations = db.Source.Where(s => s.Id >= start && s.Id < start + batchSize).Select(s => new Destination()
                             {
                                 Location = Microsoft.SqlServer.Types.SqlGeography.Point((double)s.Latitude, (double)s.Longitude, 4326)
                             });
 
-                            db.BulkInsertAll<Destination>(sources);
+                            //Insert via DataTable Conversion (Will not work with NetTopologySuite)
+                            db.BulkInsertAll<Destination>(destinations);
+
+                            int count = destinations.Count();
+
+                            wrote += count;
+
+                            _logger.LogInformation("Repo Chunk {start} {count} Complete @ {time} {id}", start, count, DateTime.Now, Thread.CurrentThread.ManagedThreadId);
+
+                            return count;
                         }
 
-                        return 1;
-
-                    }, min));
+                    }, current));
 
                     current += batchSize;
                 }
@@ -116,9 +146,9 @@ namespace WorkerServiceRepo
 
                 _logger.LogInformation("Repo Completed at: {time} {id}", sampleEnd = DateTime.Now, Thread.CurrentThread.ManagedThreadId);
 
-                _logger.LogInformation("Repo Took {time} {id}", sampleBegin - sampleEnd, Thread.CurrentThread.ManagedThreadId);
+                _logger.LogInformation("Repo Took {time} {id} for {count}", sampleBegin - sampleEnd, Thread.CurrentThread.ManagedThreadId, wrote);
 
-                await Task.Delay(1000);
+                break;
             }
 
             await Task.CompletedTask;

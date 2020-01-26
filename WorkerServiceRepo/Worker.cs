@@ -111,6 +111,33 @@ namespace WorkerServiceRepo
         /// <returns></returns>
         async Task Repo()
         {
+            /* 
+            --Assumes the following structure with data
+            CREATE TABLE [dbo].[Source] (
+                [Id]        INT          IDENTITY(1,1),
+                [Latitude]  DECIMAL (18, 10) NOT NULL,
+                [Longitude] DECIMAL (18, 10) NOT NULL,
+                PRIMARY KEY CLUSTERED ([Id] ASC)
+            ); GO;
+
+            INSERT [dbo].[Source] ([Id], [Latitude], [Longitude]) VALUES (1, CAST(1.0000000000 AS Decimal(18, 10)), CAST(2.0000000000 AS Decimal(18, 10)))
+            GO
+            INSERT [dbo].[Source] ([Id], [Latitude], [Longitude]) VALUES (2, CAST(2.0000000000 AS Decimal(18, 10)), CAST(3.0000000000 AS Decimal(18, 10)))
+            GO
+            INSERT [dbo].[Source] ([Id], [Latitude], [Longitude]) VALUES (3, CAST(3.0000000000 AS Decimal(18, 10)), CAST(4.0000000000 AS Decimal(18, 10)))
+            GO
+            INSERT [dbo].[Source] ([Id], [Latitude], [Longitude]) VALUES (4, CAST(4.0000000000 AS Decimal(18, 10)), CAST(5.0000000000 AS Decimal(18, 10)))
+            GO
+            SET IDENTITY_INSERT [dbo].[Source] OFF
+            GO
+
+            CREATE TABLE [dbo].[Destination]
+            (
+            [Id] INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+                [Location] [sys].[geography] NULL
+            );
+             */
+
             // Open a connection to the LocalDB Test Database
             using (SqlConnection connection = new SqlConnection(_workerOptions.Source))
             {

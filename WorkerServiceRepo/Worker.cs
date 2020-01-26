@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,10 +70,49 @@ namespace WorkerServiceRepo
 
             while (false == stoppingToken.IsCancellationRequested)
             {
+                int min = 0, max = 1000000;
+
+                int current = min;
+
+                TaskFactory<int> taskFactory = new TaskFactory<int>();
+
+                HashSet<Task<int>> tasks = new HashSet<Task<int>>();
+
+                int batchSize = 1000;
 
                 _logger.LogInformation("Worker running at: {time} {id}", sampleBegin = DateTime.Now, Thread.CurrentThread.ManagedThreadId);
 
-                await Repo();
+            //await Repo();
+
+            Operation:
+                tasks.RemoveWhere(t => t.IsCanceled || t.IsCompleted || t.IsFaulted);
+
+                while (current < max&& tasks.Count < 10)
+                {
+                    tasks.Add(taskFactory.StartNew(state =>
+                    {
+                        int start = (int)state;
+
+                        using (var db = new DatabaseContext(_workerOptions.Destination))
+                        {
+                            var sources = db.Source.Where(s => s.Id >= min && s.Id < max).Select(s => new Destination()
+                            {
+                                Location = Microsoft.SqlServer.Types.SqlGeography.Point((double)s.Latitude, (double)s.Longitude, 4326)
+                            });
+
+                            db.BulkInsertAll<Destination>(sources);
+                        }
+
+                        return 1;
+
+                    }, min));
+
+                    current += batchSize;
+                }
+
+                await Task.WhenAll(tasks);
+
+                if (current < max) goto Operation;
 
                 _logger.LogInformation("Repo Completed at: {time} {id}", sampleEnd = DateTime.Now, Thread.CurrentThread.ManagedThreadId);
 
@@ -139,7 +179,7 @@ namespace WorkerServiceRepo
              */
 
             //Todo, could acced db options and pass to base
-            //using(DatabaseContext dbContext = new DatabaseContext(_workerOptions.Destination))
+            //using (DatabaseContext dbContext = new DatabaseContext(_workerOptions.Destination))
             //{
             //    _logger.LogInformation("Success={bool}", dbContext.Database.EnsureCreated());
             //}

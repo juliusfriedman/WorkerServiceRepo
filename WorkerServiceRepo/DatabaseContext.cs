@@ -17,10 +17,15 @@ namespace WorkerServiceRepo
 
         public readonly Action<ModelBuilder> CreateModels = (modelBuilder) => { };
 
+        public DbSet<Source> Source { get; set; }
+
+        public DbSet<Destination> Destination { get; set; }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (optionsBuilder.IsConfigured) return;
             Configure(optionsBuilder);
+            optionsBuilder.UseSqlServer(ConnectionString);
             base.OnConfiguring(optionsBuilder);
         }
 
@@ -30,7 +35,7 @@ namespace WorkerServiceRepo
             base.OnModelCreating(modelBuilder);
         }
 
-        public DatabaseContext(string connectionString, Action<DbContextOptionsBuilder> configure = null, Action<ModelBuilder> createModels = null)
+        public DatabaseContext(string connectionString, Action<DbContextOptionsBuilder> configure = null, Action<ModelBuilder> createModels = null) : base(new DbContextOptions<DatabaseContext>())
         {
             if (null != configure)
             {

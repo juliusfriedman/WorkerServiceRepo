@@ -138,6 +138,12 @@ namespace WorkerServiceRepo
             );
              */
 
+            //Todo, could acced db options and pass to base
+            //using(DatabaseContext dbContext = new DatabaseContext(_workerOptions.Destination))
+            //{
+            //    _logger.LogInformation("Success={bool}", dbContext.Database.EnsureCreated());
+            //}
+
             // Open a connection to the LocalDB Test Database
             using (SqlConnection connection = new SqlConnection(_workerOptions.Source))
             {

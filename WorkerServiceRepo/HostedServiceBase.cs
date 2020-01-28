@@ -10,7 +10,7 @@ namespace WorkerServiceRepo
     /// <summary>
     /// Abstract class which manages the boiler plate code
     /// </summary>
-    public abstract class HostedServiceBase : BackgroundService, IHostedService
+    public abstract class HostedServiceBase : BackgroundService
     {       
         internal protected IHostApplicationLifetime _appLifetime;
 

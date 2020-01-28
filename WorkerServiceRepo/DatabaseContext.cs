@@ -244,6 +244,11 @@ public class HintCommandInterceptor : DbCommandInterceptor
     {
         return base.CommandCreated(eventData, result);
     }
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+        return base.ReaderExecuting(command, eventData, result);        
+    }
 }
 
 public static class DatabaseContextExtensions

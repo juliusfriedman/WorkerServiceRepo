@@ -31,7 +31,7 @@ namespace WorkerServiceRepo
             hostBuilder.ConfigureAppConfiguration((hostingContext, config) =>
             {
                     //Configure context
-                })
+            })
             .ConfigureServices((hostContext, services) =>
             {
                 services.AddHostedService<Worker>();
